@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,9 @@ class Settings(BaseSettings):
     kite_stop_loss_percentage: float = Field(0.10)
     kite_redirect_url: str | None = None
     kite_auto_save_token: bool = Field(False)
+
+    def __init__(self, **values: Any) -> None:
+        super().__init__(**values)
 
     model_config = SettingsConfigDict(
         env_file=_get_env_file(),
