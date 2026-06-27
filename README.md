@@ -33,7 +33,53 @@ Required variables:
 - `KITE_ACCESS_TOKEN`
 - `KITE_USER_ID`
 
-`KITE_API_SECRET` is used to validate the incoming Kite checksum
+`KITE_API_SECRET` is used to validate the incoming Kite checksum.
+
+### Kite auth flow
+
+- `GET /kite/auth/login` redirects the user to the Kite Connect login page.
+- Kite sends the user back to `GET /kite/auth/callback` after login.
+- The callback exchanges `request_token` for an access token via Kite Connect.
+- Set `KITE_AUTO_SAVE_TOKEN=true` to persist the generated token back into `.env`.
+- Use `GET /kite/auth/status` to verify whether a token is saved and the user is authenticated.
+
+### What belongs in `.env`
+
+Put only sensitive Kite credentials and application-level defaults in `.env`.
+
+- `KITE_API_KEY`
+- `KITE_API_SECRET`
+- `KITE_ACCESS_TOKEN`
+- `KITE_USER_ID`
+- `KITE_DEFAULT_PRODUCT`
+- `KITE_DEFAULT_VARIETY`
+- `KITE_ORDER_VALIDITY`
+- `KITE_STOP_LOSS_MINIMUM_AMOUNT`
+- `KITE_STOP_LOSS_PERCENTAGE`
+
+### What can be JSON payload data instead
+
+Order-specific request values from the Kite curl example should typically be passed as JSON or form data for each order, not stored as environment variables.
+
+Example order payload fields:
+
+- `variety`
+- `exchange`
+- `tradingsymbol`
+- `transaction_type`
+- `order_type`
+- `quantity`
+- `price`
+- `product`
+- `validity`
+- `disclosed_quantity`
+- `trigger_price`
+- `squareoff`
+- `stoploss`
+- `trailing_stoploss`
+- `tag`
+
+These values may change per order and should be maintained in your order request body.
 
 ## Run locally
 
