@@ -37,15 +37,28 @@ def verify_kite_checksum(payload: KiteOrderStatusPostback, secret: str) -> bool:
 
 
 @router.post("/kite/webhook", tags=["kite"])
-@router.post("/kite/postback", tags=["kite"])
 def kite_order_status_webhook(event: KiteWebhookEvent) -> dict:
     order_payload = event.order_payload()
+    event_name = (event.type or event.event or "unknown").lower()
     logger.info(
         "Received Kite webhook event=%s order_id=%s",
-        event.type or event.event,
+        event_name,
         order_payload.order_id,
     )
     settings = Settings()  # type: ignore[call-arg]
+
+    if not settings.kite_access_token:
+        raise HTTPException(
+            status_code=http_status.HTTP_401_UNAUTHORIZED,
+            detail="Kite access token is not configured. Authenticate via /kite/auth/login first.",
+        )
+
+    if event_name != "order_update":
+        logger.info("Ignoring Kite webhook event because it is not order_update: %s", event_name)
+        return {
+            "status": "ignored",
+            "event_type": event_name,
+        }
 
     if not verify_kite_checksum(order_payload, settings.kite_api_secret):
         raise HTTPException(

@@ -12,7 +12,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Kite Stop Loss Service",
         version="0.1.0",
-        description="A small FastAPI service to accept Kite order postbacks and place sell stop-loss orders for completed buy orders.",
+        description="A small FastAPI service to accept Kite Connect websocket webhook events and place sell stop-loss orders for completed buy orders.",
     )
     app.include_router(health_router)
     app.include_router(kite_auth_router)

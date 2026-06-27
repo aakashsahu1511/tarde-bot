@@ -1,20 +1,20 @@
 # Kite Stop Loss Service
 
-A small FastAPI application that receives Kite order status postbacks and places a sell stop-loss limit order when a completed buy order is detected.
+A small FastAPI application that receives Kite Connect websocket webhook events and places a sell stop-loss limit order when a completed buy order is detected.
 
 ## Technical architecture
 
 - `app/main.py` — FastAPI app factory and router registration
 - `app/config.py` — environment-backed settings using `pydantic-settings`
 - `app/routes/health.py` — `GET /health`
-- `app/routes/kite_webhook.py` — `POST /kite/postback`
+- `app/routes/kite_webhook.py` — `POST /kite/webhook`
 - `app/services/kite_client.py` — Kite Connect wrapper for placing orders
-- `app/models/schemas.py` — request validation for Kite postback payloads
+- `app/models/schemas.py` — request validation for Kite websocket webhook payloads
 
 ## Functional behavior
 
 - Health endpoint confirms service availability
-- Webhook endpoint accepts Kite order status postbacks at `POST /kite/postback`
+- Webhook endpoint accepts Kite Connect websocket webhook events at `POST /kite/webhook`
 - Only `BUY` orders with status `COMPLETE` or `CANCELLED` and filled quantity are processed
 - Stop-loss trigger is calculated as the greater of:
   - 10 INR

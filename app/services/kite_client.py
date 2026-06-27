@@ -9,10 +9,15 @@ logger = logging.getLogger(__name__)
 class KiteClient:
     def __init__(self, settings: Settings):
         self.settings = settings
+        if not self.settings.kite_access_token:
+            raise ValueError("Kite access token is not configured. Authenticate via /kite/auth/login first.")
+
         from kiteconnect import KiteConnect
 
-        self.client = KiteConnect(api_key=self.settings.kite_api_key)
-        self.client.set_access_token(self.settings.kite_access_token)
+        self.client = KiteConnect(
+            api_key=self.settings.kite_api_key,
+            access_token=self.settings.kite_access_token,
+        )
 
     def place_sell_stop_loss(
         self,

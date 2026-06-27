@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi import status as http_status
@@ -46,8 +47,9 @@ def _update_env_file(access_token: str, user_id: str, env_path: Path) -> None:
 
 
 @router.get("/kite/auth/login", tags=["kite"])
-def kite_auth_login() -> RedirectResponse:
+def kite_auth_login(action: str | None = Query(None, description="Optional action to preserve in redirect_params")) -> RedirectResponse:
     settings = Settings()  # type: ignore[call-arg]
+    logger.info("/kite/auth/login endpoint hit; action=%s", action)
 
     try:
         from kiteconnect import KiteConnect
@@ -60,12 +62,17 @@ def kite_auth_login() -> RedirectResponse:
 
     kite = KiteConnect(api_key=settings.kite_api_key)
     login_url = kite.login_url()
+    logger.info("Redirecting user to Kite login URL: %s", login_url)
+    if action:
+        redirect_params = quote_plus(f"action={action}")
+        login_url = f"{login_url}&redirect_params={redirect_params}"
     return RedirectResponse(login_url)
 
 
 @router.get("/kite/auth/status", tags=["kite"])
 def kite_auth_status() -> dict:
     settings = Settings()  # type: ignore[call-arg]
+    logger.info("/kite/auth/status endpoint hit")
     authenticated = bool(settings.kite_access_token and settings.kite_user_id)
     return {
         "authenticated": authenticated,
@@ -83,6 +90,13 @@ def kite_auth_callback(
     error_message: str | None = Query(None),
 ) -> Any:
     settings = Settings()  # type: ignore[call-arg]
+
+    logger.info(
+        "/kite/auth/callback endpoint hit; status=%s request_token_present=%s action=%s",
+        status,
+        bool(request_token),
+        action,
+    )
 
     if status.lower() != "success":
         raise HTTPException(
@@ -108,7 +122,7 @@ def kite_auth_callback(
     kite = KiteConnect(api_key=settings.kite_api_key)
 
     try:
-        session_data = kite.generate_session(request_token, settings.kite_api_secret)
+        session_data = kite.generate_session(request_token=request_token, api_secret=settings.kite_api_secret)
     except Exception as exc:
         logger.exception("Kite session generation failed for request token %s", request_token)
         raise HTTPException(
@@ -125,6 +139,19 @@ def kite_auth_callback(
         env_path = _env_path(settings)
         _update_env_file(session_data["access_token"], session_data["user_id"], env_path)
         session_data["saved_to_env"] = str(env_path)
+        # Log success but avoid printing full tokens
+        access_token = session_data.get("access_token", "")
+        masked = (
+            f"{access_token[:4]}...{access_token[-4:]}" if isinstance(access_token, str) and len(access_token) > 8 else "(redacted)"
+        )
+        logger.info(
+            "Successfully generated Kite session for user_id=%s; access_token=%s; saved_to_env=%s",
+            session_data.get("user_id"),
+            masked,
+            env_path,
+        )
+    else:
+        logger.info("Kite session generated but not saved to env; session_keys=%s", list(session_data.keys()) if isinstance(session_data, dict) else None)
 
     return {
         "status": "success",
