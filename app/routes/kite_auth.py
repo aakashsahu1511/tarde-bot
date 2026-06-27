@@ -8,7 +8,7 @@ from fastapi import status as http_status
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import Settings, get_settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def _update_env_file(access_token: str, user_id: str, env_path: Path) -> None:
 
 def _get_settings_or_500() -> Settings:
     try:
-        return Settings()  # type: ignore[call-arg]
+        return get_settings()
     except ValidationError as exc:
         logger.exception("Settings validation failed: %s", exc)
         raise HTTPException(

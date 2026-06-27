@@ -6,7 +6,7 @@ from typing import Tuple
 from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 
-from app.config import Settings
+from app.config import get_settings
 from app.models.schemas import KiteOrderStatusPostback, KiteWebhookEvent
 from app.services.kite_client import KiteClient
 
@@ -40,7 +40,7 @@ def verify_kite_checksum(payload: KiteOrderStatusPostback, secret: str) -> bool:
 def kite_order_status_webhook(event: KiteWebhookEvent) -> dict:
     payload = event.order_payload()
     logger.info("Received Kite sample webhook event=%s order_id=%s", event.type or event.event, payload.order_id)
-    settings = Settings()  # type: ignore[call-arg]
+    settings = get_settings()
 
     if not verify_kite_checksum(payload, settings.kite_api_secret):
         raise HTTPException(

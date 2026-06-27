@@ -6,7 +6,7 @@ from typing import Tuple
 from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 
-from app.config import Settings
+from app.config import get_settings
 from app.models.schemas import KiteOrderStatusPostback, KiteWebhookEvent
 from app.services.kite_client import KiteClient
 
@@ -45,7 +45,7 @@ def kite_order_status_webhook(event: KiteWebhookEvent) -> dict:
         event_name,
         order_payload.order_id,
     )
-    settings = Settings()  # type: ignore[call-arg]
+    settings = get_settings()
 
     if not settings.kite_access_token:
         raise HTTPException(

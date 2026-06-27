@@ -2,6 +2,7 @@ import logging
 
 from app.config import Settings
 from app.models.schemas import KiteOrderStatusPostback
+from kiteconnect import KiteConnect
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +12,6 @@ class KiteClient:
         self.settings = settings
         if not self.settings.kite_access_token:
             raise ValueError("Kite access token is not configured. Authenticate via /kite/auth/login first.")
-
-        from kiteconnect import KiteConnect
 
         self.client = KiteConnect(
             api_key=self.settings.kite_api_key,
@@ -25,8 +24,6 @@ class KiteClient:
         trigger_price: float,
         limit_price: float,
     ) -> dict:
-        from kiteconnect import KiteException
-
         payload = {
             "tradingsymbol": order.tradingsymbol,
             "exchange": order.exchange,
@@ -43,6 +40,6 @@ class KiteClient:
         logger.info("Placing Kite stop-loss order for completed buy order %s", order.order_id)
         try:
             return self.client.place_order(**payload)
-        except KiteException as exc:
+        except Exception as exc:
             logger.exception("Kite order placement failed for order_id=%s", order.order_id)
             raise
