@@ -23,25 +23,24 @@ A small FastAPI application that receives Kite Connect websocket webhook events 
 
 ## Configuration
 
-1. Copy `.env.example` to `.env`
-2. Set your Kite credentials and optional defaults
+Kite credentials and defaults are now hard-coded in `app/config.py`.
+Update `kite_api_key`, `kite_api_secret`, and any optional defaults directly in that file.
 
-Required variables:
+Required values in `app/config.py`:
 
-- `KITE_API_KEY`
-- `KITE_API_SECRET`
-- `KITE_ACCESS_TOKEN`
-- `KITE_USER_ID`
+- `kite_api_key`
+- `kite_api_secret`
+- `kite_access_token`
+- `kite_user_id`
 
-`KITE_API_SECRET` is used to validate the incoming Kite checksum.
+`kite_api_secret` is used to validate the incoming Kite checksum.
 
 ### Kite auth flow
 
 - `GET /kite/auth/login` redirects the user to the Kite Connect login page.
-- Kite sends the user back to `GET /kite/auth/callback` after login.
-- The callback exchanges `request_token` for an access token via Kite Connect.
+- Kite sends the user back to the registered redirect URL, which is handled by the same `/kite/auth/login` endpoint.
+- That endpoint exchanges `request_token` for an access token via Kite Connect.
 - Set `KITE_AUTO_SAVE_TOKEN=true` to persist the generated token back into `.env`.
-- Use `GET /kite/auth/status` to verify whether a token is saved and the user is authenticated.
 
 ### What belongs in `.env`
 

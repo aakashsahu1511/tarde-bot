@@ -13,7 +13,7 @@ def _ensure_test_settings():
     os.environ.setdefault("KITE_USER_ID", "test-user-id")
 
 
-def test_kite_auth_callback_success(monkeypatch):
+def test_kite_auth_login_callback_success(monkeypatch):
     _ensure_test_settings()
     os.environ.setdefault("KITE_ACCESS_TOKEN", "")
     os.environ.setdefault("KITE_AUTO_SAVE_TOKEN", "false")
@@ -35,7 +35,7 @@ def test_kite_auth_callback_success(monkeypatch):
 
     client = TestClient(app)
     response = client.get(
-        "/kite/auth/callback",
+        "/kite/auth/login",
         params={"status": "success", "request_token": "test-request-token", "action": "login"},
     )
 
@@ -46,10 +46,10 @@ def test_kite_auth_callback_success(monkeypatch):
     assert data["redirect_action"] == "login"
 
 
-def test_kite_auth_callback_missing_token():
+def test_kite_auth_login_missing_token():
     _ensure_test_settings()
     client = TestClient(app)
-    response = client.get("/kite/auth/callback", params={"status": "success"})
+    response = client.get("/kite/auth/login", params={"status": "success"})
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Missing request_token in Kite redirect callback"
@@ -76,17 +76,4 @@ def test_kite_auth_login_redirect(monkeypatch):
     assert response.headers["location"] == "https://kite.trade/connect/login?api_key=test-key&v=3"
 
 
-def test_kite_auth_status_when_authenticated(monkeypatch):
-    _ensure_test_settings()
-    os.environ["KITE_ACCESS_TOKEN"] = "saved-token"
-    os.environ["KITE_USER_ID"] = "NR5684"
 
-    client = TestClient(app)
-    response = client.get("/kite/auth/status")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "authenticated": True,
-        "kite_user_id": "NR5684",
-        "saved_token": True,
-    }

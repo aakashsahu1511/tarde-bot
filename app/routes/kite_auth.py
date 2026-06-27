@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 from fastapi import APIRouter, HTTPException, Query
 from fastapi import status as http_status
 from fastapi.responses import RedirectResponse
-from pydantic import ValidationError
+
 
 from app.config import Settings, get_settings
 
@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def _env_path(settings: Settings) -> Path:
-    env_file = settings.model_config.get("env_file", ".env")
-    path = Path(str(env_file))
+    # .env handling simplified: always use repository root `.env`
+    path = Path('.env')
     if not path.is_absolute():
         path = Path.cwd() / path
     return path
@@ -49,13 +49,23 @@ def _update_env_file(access_token: str, user_id: str, env_path: Path) -> None:
 
 def _get_settings_or_500() -> Settings:
     try:
-        return get_settings()
-    except ValidationError as exc:
-        logger.exception("Settings validation failed: %s", exc)
+        settings = get_settings()
+    except Exception as exc:
+        logger.exception("Failed to load settings: %s", exc)
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Missing required Kite settings (KITE_API_KEY, KITE_API_SECRET). Please configure environment variables.",
+            detail="Failed to load Kite settings.",
         ) from exc
+
+    # Ensure required credentials are present
+    if not getattr(settings, "kite_api_key", None) or not getattr(settings, "kite_api_secret", None):
+        logger.error("Missing required Kite credentials in settings")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Missing required Kite settings (kite_api_key, kite_api_secret).",
+        )
+
+    return settings
 
 
 def _process_request_token(settings: Settings, request_token: str, action: str | None = None) -> dict:
@@ -112,16 +122,20 @@ def kite_auth_login(
     error_type: str | None = Query(None),
     error_message: str | None = Query(None),
 ) -> Any:
-    """Start Kite login or handle a misconfigured redirect that posts back to this URL.
+    """Start Kite login or process the Kite redirect callback in a single endpoint.
 
-    If Kite redirects to this endpoint (with `status` and `request_token`), process the
-    request_token the same way as `/kite/auth/callback` so the app is tolerant to misconfigured
-    redirect URLs in the Kite developer console.
+    The registered Kite redirect URL can point to this same endpoint, so the login endpoint
+    also processes the returned `request_token` and exchanges it for an access token.
     """
     logger.info("/kite/auth/login endpoint hit; action=%s status=%s request_token_present=%s", action, status, bool(request_token))
 
-    # If Kite redirected here with a request_token, handle it as a callback.
-    if status and request_token:
+    if status:
+        if not request_token:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="Missing request_token in Kite redirect callback",
+            )
+
         settings = _get_settings_or_500()
         if status.lower() != "success":
             raise HTTPException(
@@ -131,7 +145,6 @@ def kite_auth_login(
 
         return _process_request_token(settings, request_token, action)
 
-    # Otherwise initiate a fresh login redirect
     settings = _get_settings_or_500()
 
     try:
@@ -150,49 +163,5 @@ def kite_auth_login(
         redirect_params = quote_plus(f"action={action}")
         login_url = f"{login_url}&redirect_params={redirect_params}"
     return RedirectResponse(login_url)
-
-
-@router.get("/kite/auth/status", tags=["kite"])
-def kite_auth_status() -> dict:
-    settings = Settings()  # type: ignore[call-arg]
-    logger.info("/kite/auth/status endpoint hit")
-    authenticated = bool(settings.kite_access_token and settings.kite_user_id)
-    return {
-        "authenticated": authenticated,
-        "kite_user_id": settings.kite_user_id,
-        "saved_token": bool(settings.kite_access_token),
-    }
-
-
-@router.get("/kite/auth/callback", tags=["kite"])
-def kite_auth_callback(
-    status: str = Query(...),
-    request_token: str | None = Query(None),
-    action: str | None = Query(None),
-    error_type: str | None = Query(None),
-    error_message: str | None = Query(None),
-) -> Any:
-    logger.info(
-        "/kite/auth/callback endpoint hit; status=%s request_token_present=%s action=%s",
-        status,
-        bool(request_token),
-        action,
-    )
-
-    settings = _get_settings_or_500()
-
-    if status.lower() != "success":
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail={"status": status, "error_type": error_type, "error_message": error_message},
-        )
-
-    if not request_token:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="Missing request_token in Kite redirect callback",
-        )
-
-    return _process_request_token(settings, request_token, action)
 
 

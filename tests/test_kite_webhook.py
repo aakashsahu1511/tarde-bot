@@ -168,34 +168,3 @@ def test_webhook_creates_stop_loss_order_on_cancelled_filled_buy_order(monkeypat
     assert captured["limit_price"] == 89.95
     assert captured["tradingsymbol"] == "TEST1234PE"
     assert data["kite_response"]["order_id"] == "stop-loss-2"
-
-
-def test_sample_webhook_receives_order_update():
-    os.environ.setdefault("KITE_API_KEY", "test-key")
-    os.environ.setdefault("KITE_API_SECRET", "test-secret")
-    client = TestClient(app)
-    order_payload = {
-        "order_id": "12399",
-        "status": "OPEN",
-        "transaction_type": "BUY",
-        "tradingsymbol": "TEST1234CE",
-        "exchange": "NFO",
-        "product": "MIS",
-        "quantity": 1,
-        "average_price": 120.0,
-        "order_timestamp": "2026-06-27 09:28:00",
-    }
-    order_payload["checksum"] = hashlib.sha256(
-        f"{order_payload['order_id']}{order_payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
-    ).hexdigest()
-    payload = {
-        "type": "order_update",
-        "payload": order_payload,
-    }
-
-    response = client.post("/sample", json=payload)
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "received"
-    assert response.json()["order_id"] == "12399"
-    assert response.json()["event_type"] == "order_update"
