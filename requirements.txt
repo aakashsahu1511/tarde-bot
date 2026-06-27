@@ -2,5 +2,6 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.23.0
 pydantic>=2.8.0
 pydantic-settings>=0.10.0
+httpx>=0.27.0
 kiteconnect>=4.0.0
 pytest>=8.0.0
