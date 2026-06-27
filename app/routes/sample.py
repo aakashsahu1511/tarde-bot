@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 
 from app.config import Settings
-from app.models.schemas import KiteOrderStatusPostback
+from app.models.schemas import KiteOrderStatusPostback, KiteWebhookEvent
 from app.services.kite_client import KiteClient
 
 router = APIRouter()
@@ -37,7 +37,8 @@ def verify_kite_checksum(payload: KiteOrderStatusPostback, secret: str) -> bool:
 
 
 @router.post("/sample", tags=["sample"])
-def sample_order_status_webhook(payload: KiteOrderStatusPostback) -> dict:
+def sample_order_status_webhook(event: KiteWebhookEvent) -> dict:
+    payload = event.order_payload()
     logger.info("Received sample order status payload for order_id=%s", payload.order_id)
     settings = Settings()  # type: ignore[call-arg]
 

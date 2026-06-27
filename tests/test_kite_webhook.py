@@ -16,7 +16,7 @@ def _ensure_test_settings():
 def test_webhook_ignores_non_complete_order():
     _ensure_test_settings()
     client = TestClient(app)
-    payload = {
+    order_payload = {
         "order_id": "12345",
         "status": "OPEN",
         "transaction_type": "BUY",
@@ -27,9 +27,13 @@ def test_webhook_ignores_non_complete_order():
         "average_price": 120.0,
         "order_timestamp": "2026-06-27 09:24:25",
     }
-    payload["checksum"] = hashlib.sha256(
-        f"{payload['order_id']}{payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
+    order_payload["checksum"] = hashlib.sha256(
+        f"{order_payload['order_id']}{order_payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
     ).hexdigest()
+    payload = {
+        "type": "order_update",
+        "payload": order_payload,
+    }
 
     response = client.post("/kite/postback", json=payload)
 
@@ -41,7 +45,7 @@ def test_webhook_ignores_non_complete_order():
 def test_webhook_ignores_non_buy_order():
     _ensure_test_settings()
     client = TestClient(app)
-    payload = {
+    order_payload = {
         "order_id": "12346",
         "status": "COMPLETE",
         "transaction_type": "SELL",
@@ -52,9 +56,13 @@ def test_webhook_ignores_non_buy_order():
         "average_price": 120.0,
         "order_timestamp": "2026-06-27 09:25:00",
     }
-    payload["checksum"] = hashlib.sha256(
-        f"{payload['order_id']}{payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
+    order_payload["checksum"] = hashlib.sha256(
+        f"{order_payload['order_id']}{order_payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
     ).hexdigest()
+    payload = {
+        "type": "order_update",
+        "payload": order_payload,
+    }
 
     response = client.post("/kite/postback", json=payload)
 
@@ -81,7 +89,7 @@ def test_webhook_creates_stop_loss_order(monkeypatch):
 
     monkeypatch.setattr("app.routes.kite_webhook.KiteClient", DummyKiteClient)
     client = TestClient(app)
-    payload = {
+    order_payload = {
         "order_id": "12347",
         "status": "COMPLETE",
         "transaction_type": "BUY",
@@ -92,9 +100,13 @@ def test_webhook_creates_stop_loss_order(monkeypatch):
         "average_price": 100.0,
         "order_timestamp": "2026-06-27 09:26:00",
     }
-    payload["checksum"] = hashlib.sha256(
-        f"{payload['order_id']}{payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
+    order_payload["checksum"] = hashlib.sha256(
+        f"{order_payload['order_id']}{order_payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
     ).hexdigest()
+    payload = {
+        "type": "order_update",
+        "payload": order_payload,
+    }
 
     response = client.post("/kite/postback", json=payload)
 
@@ -126,7 +138,7 @@ def test_webhook_creates_stop_loss_order_on_cancelled_filled_buy_order(monkeypat
 
     monkeypatch.setattr("app.routes.kite_webhook.KiteClient", DummyKiteClient)
     client = TestClient(app)
-    payload = {
+    order_payload = {
         "order_id": "12348",
         "status": "CANCELLED",
         "transaction_type": "BUY",
@@ -138,9 +150,13 @@ def test_webhook_creates_stop_loss_order_on_cancelled_filled_buy_order(monkeypat
         "filled_quantity": 1,
         "order_timestamp": "2026-06-27 09:27:00",
     }
-    payload["checksum"] = hashlib.sha256(
-        f"{payload['order_id']}{payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
+    order_payload["checksum"] = hashlib.sha256(
+        f"{order_payload['order_id']}{order_payload['order_timestamp']}{os.environ['KITE_API_SECRET']}".encode("utf-8")
     ).hexdigest()
+    payload = {
+        "type": "order_update",
+        "payload": order_payload,
+    }
 
     response = client.post("/kite/postback", json=payload)
 

@@ -49,3 +49,18 @@ class KiteOrderStatusPostback(BaseModel):
     @property
     def is_final_status(self) -> bool:
         return self.normalized_order_status in {"COMPLETE", "CANCELLED"}
+
+
+class KiteWebhookEvent(BaseModel):
+    type: str | None = None
+    event: str | None = None
+    timestamp: str | None = None
+    payload: dict | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+    def order_payload(self) -> KiteOrderStatusPostback:
+        raw_payload = self.payload
+        if raw_payload is None:
+            raw_payload = self.model_dump(exclude={"type", "event", "timestamp", "payload"})
+        return KiteOrderStatusPostback.model_validate(raw_payload)

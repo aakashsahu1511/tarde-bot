@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 
 from app.config import Settings
-from app.models.schemas import KiteOrderStatusPostback
+from app.models.schemas import KiteOrderStatusPostback, KiteWebhookEvent
 from app.services.kite_client import KiteClient
 
 router = APIRouter()
@@ -36,40 +36,61 @@ def verify_kite_checksum(payload: KiteOrderStatusPostback, secret: str) -> bool:
     return expected == payload.checksum
 
 
+@router.post("/kite/webhook", tags=["kite"])
 @router.post("/kite/postback", tags=["kite"])
-def kite_order_status_webhook(payload: KiteOrderStatusPostback) -> dict:
-    logger.info("Received Kite order status postback for order_id=%s", payload.order_id)
+def kite_order_status_webhook(event: KiteWebhookEvent) -> dict:
+    order_payload = event.order_payload()
+    logger.info(
+        "Received Kite webhook event=%s order_id=%s",
+        event.type or event.event,
+        order_payload.order_id,
+    )
     settings = Settings()  # type: ignore[call-arg]
 
-    if not verify_kite_checksum(payload, settings.kite_api_secret):
+    if not verify_kite_checksum(order_payload, settings.kite_api_secret):
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="Invalid checksum",
         )
 
-    if not payload.is_final_status:
+    if not order_payload.is_final_status:
+        logger.info(
+            "Ignoring Kite order status webhook because status is not final: order_id=%s status=%s",
+            order_payload.order_id,
+            order_payload.normalized_order_status,
+        )
         return {
             "status": "ignored",
             "reason": "order status is not COMPLETE or CANCELLED",
-            "order_status": payload.order_status,
+            "order_status": order_payload.order_status,
         }
 
-    if not payload.is_buy_order:
+    if not order_payload.is_buy_order:
+        logger.info(
+            "Ignoring Kite order status webhook because transaction is not BUY: order_id=%s transaction_type=%s",
+            order_payload.order_id,
+            order_payload.transaction_type,
+        )
         return {
             "status": "ignored",
             "reason": "only BUY orders trigger stop-loss creation",
-            "transaction_type": payload.transaction_type,
+            "transaction_type": order_payload.transaction_type,
         }
 
-    if payload.normalized_order_status == "CANCELLED" and not payload.filled_quantity:
+    if order_payload.normalized_order_status == "CANCELLED" and not order_payload.filled_quantity:
+        logger.info(
+            "Ignoring cancelled Kite order because filled_quantity is empty: order_id=%s filled_quantity=%s",
+            order_payload.order_id,
+            order_payload.filled_quantity,
+        )
         return {
             "status": "ignored",
             "reason": "cancelled order has no filled quantity",
-            "filled_quantity": payload.filled_quantity,
+            "filled_quantity": order_payload.filled_quantity,
         }
 
     try:
-        executed_price = payload.executed_price
+        executed_price = order_payload.executed_price
         trigger_price, limit_price = calculate_stop_loss_levels(
             executed_price,
             settings.kite_stop_loss_minimum_amount,
@@ -81,9 +102,9 @@ def kite_order_status_webhook(payload: KiteOrderStatusPostback) -> dict:
     kite_client = KiteClient(settings)
 
     try:
-        kite_response = kite_client.place_sell_stop_loss(payload, trigger_price, limit_price)
+        kite_response = kite_client.place_sell_stop_loss(order_payload, trigger_price, limit_price)
     except Exception as exc:
-        logger.exception("Failed to place sell stop-loss order for order_id=%s", payload.order_id)
+        logger.exception("Failed to place sell stop-loss order for order_id=%s", order_payload.order_id)
         raise HTTPException(
             status_code=http_status.HTTP_502_BAD_GATEWAY,
             detail="Failed to place sell stop-loss order",
@@ -92,7 +113,7 @@ def kite_order_status_webhook(payload: KiteOrderStatusPostback) -> dict:
     return {
         "status": "created",
         "message": "Sell stop-loss order created",
-        "original_order_id": payload.order_id,
+        "original_order_id": order_payload.order_id,
         "trigger_price": trigger_price,
         "limit_price": limit_price,
         "kite_response": kite_response,
