@@ -1,6 +1,17 @@
+from pathlib import Path
+
 from pydantic import Field
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _get_env_file() -> str | None:
+    """Return .env path if it exists, otherwise None (for production).
+    
+    In production (Render), env vars are set directly; .env won't exist.
+    Locally, we load from .env for convenience.
+    """
+    env_file = Path(".env")
+    return str(env_file) if env_file.exists() else None
 
 
 class Settings(BaseSettings):
@@ -17,4 +28,7 @@ class Settings(BaseSettings):
     kite_redirect_url: str | None = None
     kite_auto_save_token: bool = Field(False)
 
-    model_config = ConfigDict(env_file='.env', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(
+        env_file=_get_env_file(),
+        env_file_encoding='utf-8'
+    )
