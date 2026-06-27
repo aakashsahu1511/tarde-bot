@@ -1,14 +1,10 @@
-import hashlib
 import logging
 from decimal import Decimal, ROUND_DOWN
 from typing import Tuple
 
-from fastapi import APIRouter, HTTPException
-from fastapi import status as http_status
+from fastapi import APIRouter
 
-from app.config import get_settings
-from app.models.schemas import KiteOrderStatusPostback, KiteWebhookEvent
-from app.services.kite_client import KiteClient
+from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,103 +26,8 @@ def calculate_stop_loss_levels(
     return trigger_price, limit_price
 
 
-def verify_kite_checksum(payload: KiteOrderStatusPostback, secret: str) -> bool:
-    checksum_seed = f"{payload.order_id}{payload.order_timestamp}{secret}"
-    expected = hashlib.sha256(checksum_seed.encode("utf-8")).hexdigest()
-    return expected == payload.checksum
 
 
 @router.post("/kite/webhook", tags=["kite"])
-def kite_order_status_webhook(event: KiteWebhookEvent) -> dict:
-    order_payload = event.order_payload()
-    event_name = (event.type or event.event or "unknown").lower()
-    logger.info(
-        "Received Kite webhook event=%s order_id=%s",
-        event_name,
-        order_payload.order_id,
-    )
-    settings = get_settings()
-    # If no access token is configured, log a warning and continue. The
-    # webhook handler can still validate incoming checksums and run in test
-    # mode where KiteClient is mocked.
-    if not getattr(settings, "kite_access_token", None):
-        logger.warning("Kite access token is not configured; proceeding in read-only/test mode.")
-
-    if event_name != "order_update":
-        logger.info("Ignoring Kite webhook event because it is not order_update: %s", event_name)
-        return {
-            "status": "ignored",
-            "event_type": event_name,
-        }
-
-    if not verify_kite_checksum(order_payload, settings.kite_api_secret):
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="Invalid checksum",
-        )
-
-    if not order_payload.is_final_status:
-        logger.info(
-            "Ignoring Kite order status webhook because status is not final: order_id=%s status=%s",
-            order_payload.order_id,
-            order_payload.normalized_order_status,
-        )
-        return {
-            "status": "ignored",
-            "reason": "order status is not COMPLETE or CANCELLED",
-            "order_status": order_payload.order_status,
-        }
-
-    if not order_payload.is_buy_order:
-        logger.info(
-            "Ignoring Kite order status webhook because transaction is not BUY: order_id=%s transaction_type=%s",
-            order_payload.order_id,
-            order_payload.transaction_type,
-        )
-        return {
-            "status": "ignored",
-            "reason": "only BUY orders trigger stop-loss creation",
-            "transaction_type": order_payload.transaction_type,
-        }
-
-    if order_payload.normalized_order_status == "CANCELLED" and not order_payload.filled_quantity:
-        logger.info(
-            "Ignoring cancelled Kite order because filled_quantity is empty: order_id=%s filled_quantity=%s",
-            order_payload.order_id,
-            order_payload.filled_quantity,
-        )
-        return {
-            "status": "ignored",
-            "reason": "cancelled order has no filled quantity",
-            "filled_quantity": order_payload.filled_quantity,
-        }
-
-    try:
-        executed_price = order_payload.executed_price
-        trigger_price, limit_price = calculate_stop_loss_levels(
-            executed_price,
-            settings.kite_stop_loss_minimum_amount,
-            settings.kite_stop_loss_percentage,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(exc))
-
-    kite_client = KiteClient(settings)
-
-    try:
-        kite_response = kite_client.place_sell_stop_loss(order_payload, trigger_price, limit_price)
-    except Exception as exc:
-        logger.exception("Failed to place sell stop-loss order for order_id=%s", order_payload.order_id)
-        raise HTTPException(
-            status_code=http_status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to place sell stop-loss order",
-        ) from exc
-
-    return {
-        "status": "created",
-        "message": "Sell stop-loss order created",
-        "original_order_id": order_payload.order_id,
-        "trigger_price": trigger_price,
-        "limit_price": limit_price,
-        "kite_response": kite_response,
-    }
+def kite_order_status_webhook() -> dict:
+   return {"status": "ok", "message": "Kite WEBHOOK received successfully"}
